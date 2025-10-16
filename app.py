@@ -208,9 +208,7 @@ else:
     
     with col1:
         with st.container(border=True):
-            res = st.session_state.results
-            cost_str = f"{res['bf_cost']:.1f}" if isinstance(res['bf_cost'], (int, float)) else "N/A"
-            time_str = f"{res['bf_time']:.4f}"
+            res = st.session_state.results; cost_str = f"{res['bf_cost']:.1f}" if isinstance(res['bf_cost'], (int, float)) else "N/A"; time_str = f"{res['bf_time']:.4f}"
             st.markdown(f"### Bellman-Ford\n**Cost:** {cost_str} | **Time:** {time_str}s")
             st.divider()
             bf_step = min(st.session_state.step, len(st.session_state.snapshots['bf']) - 1)
@@ -225,9 +223,7 @@ else:
     
     with col2:
         with st.container(border=True):
-            res = st.session_state.results
-            cost_str = f"{res['a_star_cost']:.1f}" if isinstance(res['a_star_cost'], (int, float)) else "N/A"
-            time_str = f"{res['a_star_time']:.4f}"
+            res = st.session_state.results; cost_str = f"{res['a_star_cost']:.1f}" if isinstance(res['a_star_cost'], (int, float)) else "N/A"; time_str = f"{res['a_star_time']:.4f}"
             st.markdown(f"### A* Search ({heuristic.capitalize()})\n**Cost:** {cost_str} | **Time:** {time_str}s")
             st.divider()
             a_star_step = min(st.session_state.step, len(st.session_state.snapshots['a_star']) - 1)
@@ -246,17 +242,17 @@ else:
             st.info(f"Step {a_star_step+1}/{len(st.session_state.snapshots['a_star'])}: {snapshot['message']}", icon="🧠")
 
     with st.expander("📊 View Final Analysis & Export Results"):
-        st.table(analysis_data) # You would define analysis_data as in previous steps
-        # ... [Full Analysis and Export code from before]
         results = st.session_state.results
         bf_path_str = " → ".join(results['bf_path']) if results['bf_path'] else "No path found"
         a_star_path_str = " → ".join(results['a_star_path']) if results['a_star_path'] else "No path found"
+        
         analysis_data = {
             "Metric": ["Path Cost", "Execution Time (s)", "Path Found"],
             "Bellman-Ford": [f"{results['bf_cost']:.2f}" if isinstance(results['bf_cost'], (int, float)) else "N/A", f"{results['bf_time']:.5f}", bf_path_str],
             "A* Search": [f"{results['a_star_cost']:.2f}" if isinstance(results['a_star_cost'], (int, float)) else "N/A", f"{results['a_star_time']:.5f}", a_star_path_str]
         }
         st.table(analysis_data)
+        
         export_data = {"graph": nx.node_link_data(st.session_state.graph), "parameters": {"start_node": start_node, "goal_node": goal_node, "a_star_heuristic": heuristic}, "results": {"bellman_ford": {"cost": results['bf_cost'], "time_seconds": results['bf_time'], "path": results['bf_path']}, "a_star": {"cost": results['a_star_cost'], "time_seconds": results['a_star_time'], "path": results['a_star_path']}}}
         st.download_button(label="💾 Export Results as JSON", data=json.dumps(export_data, indent=4), file_name=f"pathfinder_results_{start_node}_to_{goal_node}.json", mime="application/json", use_container_width=True)
 
