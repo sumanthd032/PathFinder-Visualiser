@@ -5,7 +5,6 @@ import random
 import time
 import heapq
 import json
-import asyncio
 
 st.set_page_config(
     page_title="PathFinder Visualizer",
@@ -20,7 +19,7 @@ default_state = {
     'results': {},
     'step': 0,
     'is_playing': False,
-    'speed': 0.25  
+    'speed': 0.25
 }
 for key, value in default_state.items():
     if key not in st.session_state:
@@ -101,7 +100,7 @@ def reconstruct_path(predecessors, start, goal):
     while current is not None and current in predecessors:
         path.append(current)
         prev = predecessors.get(current)
-        if prev == current: break 
+        if prev == current: break
         current = prev
     if current == start: path.append(start)
     return path[::-1] if path and path[-1] == start else []
@@ -140,7 +139,7 @@ with st.sidebar:
     with st.expander("Manual Creation", expanded=False):
         c1, c2 = st.columns(2)
         node_to_add = c1.text_input("Add Node", placeholder="e.g., A")
-        if c2.button("Add", use_container_width=True):
+        if c2.button("Add", use_container_width=True, key="add_node_man"):
             if node_to_add: st.session_state.graph.add_node(node_to_add); st.rerun()
         c1, c2, c3 = st.columns(3)
         edge_from = c1.text_input("From", placeholder="A"); edge_to = c2.text_input("To", placeholder="B"); edge_weight = c3.number_input("Weight", min_value=-10, value=1, label_visibility="collapsed")
@@ -155,24 +154,20 @@ with st.sidebar:
         mapping = {i: chr(65 + i) for i in range(num_nodes)}
         G = nx.relabel_nodes(G, mapping)
         for (u, v) in G.edges(): G.edges[u,v]['weight'] = random.randint(1, 10)
-        st.session_state.graph = G; st.session_state.snapshots = {'bf': [], 'a_star': []}; st.rerun()
+        st.session_state.graph = G; st.session_state.results = {}; st.session_state.snapshots = {}; st.rerun()
     if st.button("Clear Graph", use_container_width=True, type="primary"):
-        st.session_state.graph = nx.Graph(); st.session_state.snapshots = {'bf': [], 'a_star': []}; st.rerun()
+        st.session_state.graph = nx.Graph(); st.session_state.results = {}; st.session_state.snapshots = {}; st.rerun()
     st.divider()
     st.header("Pathfinding Controls 🎯")
     nodes_list = sorted(list(st.session_state.graph.nodes()))
     c1, c2 = st.columns(2)
-    start_node = c1.selectbox("Start Node", nodes_list)
-    goal_node = c2.selectbox("Goal Node", nodes_list, index=min(1, len(nodes_list)-1) if len(nodes_list)>1 else 0)
+    start_node = c1.selectbox("Start Node", nodes_list, key="start_node")
+    goal_node = c2.selectbox("Goal Node", nodes_list, key="goal_node", index=min(1, len(nodes_list)-1) if len(nodes_list)>1 else 0)
     heuristic = st.selectbox("A* Heuristic", ['euclidean', 'manhattan'])
     if st.button("Run Pathfinding", use_container_width=True, type="primary"):
         if start_node and goal_node and st.session_state.graph.number_of_nodes() > 0:
-            bf_start_time = time.perf_counter()
-            bf_dist, bf_pred, bf_snapshots = bellman_ford(st.session_state.graph, start_node)
-            bf_end_time = time.perf_counter()
-            a_star_start_time = time.perf_counter()
-            a_came_from, a_cost, a_star_snapshots = a_star(st.session_state.graph, start_node, goal_node, heuristic)
-            a_star_end_time = time.perf_counter()
+            bf_start_time = time.perf_counter(); bf_dist, bf_pred, bf_snapshots = bellman_ford(st.session_state.graph, start_node); bf_end_time = time.perf_counter()
+            a_star_start_time = time.perf_counter(); a_came_from, a_cost, a_star_snapshots = a_star(st.session_state.graph, start_node, goal_node, heuristic); a_star_end_time = time.perf_counter()
             st.session_state.snapshots = {'bf': bf_snapshots, 'a_star': a_star_snapshots}
             st.session_state.results = {
                 'bf_time': bf_end_time - bf_start_time, 'bf_cost': bf_dist.get(goal_node, float('inf')), 'bf_path': reconstruct_path(bf_pred, start_node, goal_node),
@@ -182,11 +177,11 @@ with st.sidebar:
         else: st.warning("Graph is empty or nodes not selected.")
 
 st.title("PathFinder Visualizer 🧭")
-st.markdown("An interactive tool to see the Bellman-Ford and A* shortest path algorithms in action.")
+st.markdown("An interactive dashboard to see the Bellman-Ford and A* shortest path algorithms in action.")
 
 if not st.session_state.graph.nodes():
     st.info("Build a graph using the sidebar controls to begin.")
-elif not st.session_state.snapshots.get('bf'):
+elif not st.session_state.results:
     st.info("Select Start/Goal nodes and click 'Run Pathfinding' to visualize.")
     pos = nx.spring_layout(st.session_state.graph, seed=42)
     node_colors = {n: COLORS['default_node'] for n in st.session_state.graph.nodes()}
@@ -199,36 +194,42 @@ else:
     
     with st.container(border=True):
         c1, c2, c3, c4 = st.columns([2, 1, 1, 6])
-        if c1.button("⏮️ Step Back"): st.session_state.step = max(0, st.session_state.step - 1)
-        if c2.button("Step Fwd ⏭️"): st.session_state.step = min(max_steps - 1, st.session_state.step + 1)
+        if c1.button("⏮️ Step Back"): st.session_state.step = max(0, st.session_state.step - 1); st.session_state.is_playing = False
+        if c2.button("Step Fwd ⏭️"): st.session_state.step = min(max_steps - 1, st.session_state.step + 1); st.session_state.is_playing = False
         play_pause_text = "Pause ⏸️" if st.session_state.is_playing else "Play ▶️"
         if c3.button(play_pause_text, type="primary"): st.session_state.is_playing = not st.session_state.is_playing
-        st.session_state.step = c4.slider("Animation Progress", 0, max_steps - 1, st.session_state.step, label_visibility="collapsed")
-        st.session_state.speed = st.select_slider("Animation Speed", options=[1, 0.5, 0.25, 0.1, 0.05], value=st.session_state.speed, format_func=lambda x: f"{1/x:.0f}x")
+        st.session_state.step = c4.slider("Progress", 0, max_steps - 1, st.session_state.step, label_visibility="collapsed")
+        st.session_state.speed = st.select_slider("Speed", options=[1, 0.5, 0.25, 0.1, 0.05], value=st.session_state.speed, format_func=lambda x: f"{1/x:.0f}x")
     
-    st.write("") 
-
+    st.write("")
     col1, col2 = st.columns(2)
     pos = nx.spring_layout(st.session_state.graph, seed=42)
     is_final_step = st.session_state.step >= max_steps - 1
     
     with col1:
         with st.container(border=True):
-            st.subheader("Bellman-Ford")
+            res = st.session_state.results
+            cost_str = f"{res['bf_cost']:.1f}" if isinstance(res['bf_cost'], (int, float)) else "N/A"
+            time_str = f"{res['bf_time']:.4f}"
+            st.markdown(f"### Bellman-Ford\n**Cost:** {cost_str} | **Time:** {time_str}s")
+            st.divider()
             bf_step = min(st.session_state.step, len(st.session_state.snapshots['bf']) - 1)
             snapshot = st.session_state.snapshots['bf'][bf_step]
-            node_colors = {n: COLORS['default_node'] for n in st.session_state.graph.nodes()}
-            node_colors[start_node] = COLORS['start_node']
+            node_colors = {n: COLORS['default_node'] for n in st.session_state.graph.nodes()}; node_colors[start_node] = COLORS['start_node']
             edge_colors, edge_widths = {}, {}
             if he := snapshot.get('highlighted_edge'): edge_colors[COLORS['highlighted_edge']] = [he]; edge_widths[he] = 6
-            if is_final_step and (path := st.session_state.results['bf_path']): edge_colors[COLORS['path_edge']] = list(zip(path[:-1], path[1:]))
+            if is_final_step and (path := res['bf_path']): edge_colors[COLORS['path_edge']] = list(zip(path[:-1], path[1:]))
             fig_bf = draw_graph(st.session_state.graph, pos, node_colors, edge_colors, edge_widths)
             st.plotly_chart(fig_bf, use_container_width=True, config={'displayModeBar': False})
-            st.info(f"Step {bf_step+1}: {snapshot['message']}")
+            st.info(f"Step {bf_step+1}/{len(st.session_state.snapshots['bf'])}: {snapshot['message']}", icon="🤖")
     
     with col2:
         with st.container(border=True):
-            st.subheader("A* Search")
+            res = st.session_state.results
+            cost_str = f"{res['a_star_cost']:.1f}" if isinstance(res['a_star_cost'], (int, float)) else "N/A"
+            time_str = f"{res['a_star_time']:.4f}"
+            st.markdown(f"### A* Search ({heuristic.capitalize()})\n**Cost:** {cost_str} | **Time:** {time_str}s")
+            st.divider()
             a_star_step = min(st.session_state.step, len(st.session_state.snapshots['a_star']) - 1)
             snapshot = st.session_state.snapshots['a_star'][a_star_step]
             node_colors = {n: COLORS['default_node'] for n in st.session_state.graph.nodes()}
@@ -239,14 +240,14 @@ else:
             if c := snapshot.get('current'): node_colors[c] = COLORS['current_node']
             node_colors[start_node] = COLORS['start_node']
             edge_colors = {}
-            if is_final_step and (path := st.session_state.results['a_star_path']): edge_colors[COLORS['path_edge']] = list(zip(path[:-1], path[1:]))
+            if is_final_step and (path := res['a_star_path']): edge_colors[COLORS['path_edge']] = list(zip(path[:-1], path[1:]))
             fig_a_star = draw_graph(st.session_state.graph, pos, node_colors, edge_colors, {})
             st.plotly_chart(fig_a_star, use_container_width=True, config={'displayModeBar': False})
-            st.info(f"Step {a_star_step+1}: {snapshot['message']}")
-
-    st.divider()
+            st.info(f"Step {a_star_step+1}/{len(st.session_state.snapshots['a_star'])}: {snapshot['message']}", icon="🧠")
 
     with st.expander("📊 View Final Analysis & Export Results"):
+        st.table(analysis_data) # You would define analysis_data as in previous steps
+        # ... [Full Analysis and Export code from before]
         results = st.session_state.results
         bf_path_str = " → ".join(results['bf_path']) if results['bf_path'] else "No path found"
         a_star_path_str = " → ".join(results['a_star_path']) if results['a_star_path'] else "No path found"
@@ -265,5 +266,4 @@ else:
             time.sleep(st.session_state.speed)
             st.rerun()
         else:
-            st.session_state.is_playing = False
-            st.rerun()
+            st.session_state.is_playing = False; st.rerun()
